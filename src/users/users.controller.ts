@@ -1,19 +1,11 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Body,
-  Post,
-  Delete,
-  Patch,
-} from '@nestjs/common';
+import { Controller, Get, Param, Body, Post, Delete, Patch } from '@nestjs/common';
 import { User } from './user.model';
 import { CreateUserDto, UpdateUserDto } from './user.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Get()
   getUsers(): User[] {
