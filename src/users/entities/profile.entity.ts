@@ -9,13 +9,13 @@ export class Profile {
   @Column({ type: 'varchar', length: 200, nullable: false, name: 'full_name' })
   fullName: string;
 
-  @Column({ type: 'varchar', length: 200, nullable: false, name: 'avatar' })
+  @Column({ type: 'varchar', length: 200, nullable: true, name: 'avatar' })
   avatarUrl: string;
 
-  @Column({ type: 'varchar', length: 200, nullable: false, name: 'biography' })
+  @Column({ type: 'varchar', length: 200, nullable: true, name: 'biography' })
   biography: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: false, name: 'phone' })
+  @Column({ type: 'varchar', length: 100, nullable: true, name: 'phone' })
   phone: string;
 
   @OneToOne(() => User, (user) => user.profile, { onDelete: 'CASCADE' })

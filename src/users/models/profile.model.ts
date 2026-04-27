@@ -4,7 +4,6 @@ export interface Profile {
   avatarUrl: string;
   biography: string;
   phone: string;
-  userId: number;
   createdAt: Date;
   updateAt: Date;
 }

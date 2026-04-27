@@ -1,98 +1,223 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# My Blog API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Proyecto de estudio para aprender a construir una API REST con **NestJS**, **TypeORM** y **PostgreSQL**, aplicando buenas prácticas desde el inicio.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Tecnologías principales
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Tecnología | Versión | Rol |
+|---|---|---|
+| NestJS | v11 | Framework principal |
+| TypeORM | v0.3 | ORM para acceso a datos |
+| PostgreSQL | - | Base de datos relacional |
+| class-validator | v0.15 | Validación de DTOs |
+| class-transformer | v0.5 | Transformación de payloads |
+| bcrypt | v6 | Hash de contraseñas |
+| @nestjs/config | v4 | Variables de entorno tipadas |
 
-## Project setup
+---
 
-```bash
-$ npm install
+## Estructura del proyecto
+
+```
+src/
+├── app.module.ts          # Módulo raíz (ConfigModule + TypeOrmModule)
+├── env.model.ts           # Interface tipada del entorno
+├── main.ts                # Bootstrap + ValidationPipe global
+└── users/
+    ├── entities/          # Entidades TypeORM (fuente de verdad del esquema)
+    ├── dtos/              # DTOs de validación de entrada
+    ├── models/            # Interfaces TypeScript (contratos de dominio)
+    ├── users.module.ts
+    ├── users.controller.ts
+    └── users.service.ts
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## Buenas prácticas aplicadas
 
-# watch mode
-$ npm run start:dev
+### 1. Variables de entorno tipadas
 
-# production mode
-$ npm run start:prod
+Se define una interface `Env` en `src/env.model.ts` y se inyecta con `ConfigService<Env>`, lo que permite autocompletado y detección de errores en tiempo de compilación.
+
+```typescript
+// src/env.model.ts
+export interface Env {
+  PORT: number;
+  DB_HOST: string;
+  DB_PORT: number;
+  DB_USER: string;
+  DB_PASSWORD: string;
+  DB_NAME: string;
+}
+
+// Uso con inferencia de tipo
+configService.get('DB_PORT', { infer: true }) // retorna number, no string
 ```
 
-## Run tests
+---
 
-```bash
-# unit tests
-$ npm run test
+### 2. ValidationPipe global con whitelist estricto
 
-# e2e tests
-$ npm run test:e2e
+El pipe se configura una sola vez en `main.ts` y aplica a todos los endpoints:
 
-# test coverage
-$ npm run test:cov
+```typescript
+app.useGlobalPipes(new ValidationPipe({
+  transform: true,          // convierte tipos automáticamente (ej. string → number en params)
+  whitelist: true,          // elimina propiedades no declaradas en el DTO
+  forbidNonWhitelisted: true // lanza error si el cliente envía campos extras
+}));
 ```
 
-## Deployment
+Esto previene que datos no esperados lleguen a la capa de servicio.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+---
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. DTOs con class-validator y herencia inteligente
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+Se separan los DTOs de creación y actualización, reutilizando lógica con `PartialType` y `OmitType` de `@nestjs/mapped-types`:
+
+```typescript
+// Creación: todos los campos requeridos
+export class CreateUserDto {
+  @IsNotEmpty() @IsString() @MinLength(8)
+  password: string;
+
+  @IsEmail()
+  email: string;
+
+  @ValidateNested()
+  @Type(() => CreateProfileDto)
+  profile: CreateProfileDto;
+}
+
+// Actualización: todos los campos opcionales, profile usa su propio UpdateDto
+export class UpdateUserDto extends PartialType(OmitType(CreateUserDto, ['profile'])) {
+  @ValidateNested()
+  @IsOptional()
+  @Type(() => UpdateProfileDto)
+  profile?: UpdateProfileDto;
+}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+`@ValidateNested()` + `@Type(() => Clase)` permite validar objetos anidados recursivamente.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+### 4. Entidades TypeORM bien definidas
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Cada columna especifica tipo, longitud, y restricciones explícitamente, sin depender de inferencias de TypeORM:
 
-## Support
+```typescript
+@Column({ type: 'varchar', length: 255, nullable: false, unique: true })
+email: string;
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+@Column({ type: 'timestamptz', default: () => 'CURRENT_TIMESTAMP', name: 'created_at' })
+createdAt: Date;
+```
 
-## Stay in touch
+Convenciones aplicadas:
+- Nombres de columnas en `snake_case` en BD (`name: 'created_at'`), propiedades en `camelCase` en código.
+- `timestamptz` en lugar de `timestamp` para almacenar zona horaria.
+- Restricciones (`nullable`, `unique`) declaradas en la entidad, no solo en migraciones.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+---
 
-## License
+### 5. Relación OneToOne con cascade y FK explícita
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```typescript
+// User (dueño de la FK)
+@OneToOne(() => Profile, { nullable: true, cascade: true })
+@JoinColumn({ name: 'profile_id' })
+profile: Profile;
+
+// Profile (lado inverso)
+@OneToOne(() => User, (user) => user.profile, { onDelete: 'CASCADE' })
+user: User;
+```
+
+- `cascade: true` en `User` → crear/actualizar un `User` con `profile` anidado persiste el `Profile` automáticamente.
+- `onDelete: 'CASCADE'` en `Profile` → si el `User` se elimina, el `Profile` se elimina en cascada desde la BD.
+- `@JoinColumn` se declara **solo en el lado dueño** (quien tiene la FK física).
+
+---
+
+### 6. autoLoadEntities: true en TypeOrmModule
+
+```typescript
+TypeOrmModule.forRootAsync({
+  useFactory: (configService) => ({
+    // ...
+    autoLoadEntities: true, // no hace falta listar entidades en el módulo raíz
+  }),
+})
+```
+
+Cada módulo registra sus propias entidades con `TypeOrmModule.forFeature([User, Profile])`. El módulo raíz las recoge automáticamente. Esto evita tener que mantener un array centralizado de entidades.
+
+---
+
+### 7. Hash de contraseñas con bcrypt
+
+Las contraseñas nunca se almacenan en texto plano. El hash se realiza en la capa de servicio antes de persistir:
+
+```typescript
+const hashedPassword = await bcrypt.hash(user.password, 10); // 10 salt rounds
+user.password = hashedPassword;
+```
+
+---
+
+### 8. Separación de responsabilidades
+
+| Capa | Responsabilidad |
+|---|---|
+| **Controller** | Recibir HTTP, parsear params/body, delegar al servicio |
+| **Service** | Lógica de negocio, acceso al repositorio, manejo de errores de dominio |
+| **Entity** | Esquema de BD, relaciones, tipos de columna |
+| **DTO** | Contrato de entrada y validación |
+| **Model** | Interface de dominio (contrato TypeScript puro) |
+
+---
+
+## Configuración local
+
+1. Crear archivo `.env` en la raíz:
+
+```env
+PORT=3000
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=tu_password
+DB_NAME=my_blog_db
+```
+
+2. Instalar dependencias:
+
+```bash
+npm install
+```
+
+3. Correr en modo desarrollo:
+
+```bash
+npm run start:dev
+```
+
+> `synchronize: true` está activo — TypeORM sincroniza el esquema automáticamente desde las entidades. Solo para desarrollo.
+
+---
+
+## Endpoints disponibles
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/users` | Listar todos los usuarios |
+| GET | `/users/:id` | Obtener usuario por ID |
+| GET | `/users/:id/profile` | Obtener perfil de un usuario |
+| POST | `/users` | Crear usuario (con perfil anidado) |
+| PATCH | `/users/:id` | Actualizar usuario |
+| DELETE | `/users/:id` | Eliminar usuario |

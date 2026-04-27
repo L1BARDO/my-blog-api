@@ -7,7 +7,7 @@ import 'reflect-metadata';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
   const configService = app.get(ConfigService<Env>);
   const PORT = configService.get('PORT', {
     infer: true,
